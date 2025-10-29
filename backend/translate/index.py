@@ -60,29 +60,16 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 Переведи текст с английского на русский."""
 
-    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
-    
-    if not api_key:
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({'error': 'API ключ DeepSeek не настроен. Добавьте DEEPSEEK_API_KEY в секреты.'})
-        }
-    
     try:
-        with httpx.Client(timeout=60.0) as client:
-            print(f"Отправляю запрос к DeepSeek API, длина текста: {len(text_to_translate)}")
+        with httpx.Client(timeout=120.0) as client:
             response = client.post(
-                'https://api.deepseek.com/chat/completions',
+                'https://api.together.xyz/v1/chat/completions',
                 headers={
                     'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {api_key}'
+                    'Authorization': f'Bearer {os.environ.get("TOGETHER_API_KEY", "free")}'
                 },
                 json={
-                    'model': 'deepseek-chat',
+                    'model': 'meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo',
                     'messages': [
                         {'role': 'system', 'content': system_prompt},
                         {'role': 'user', 'content': text_to_translate}
@@ -92,23 +79,19 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             )
             
-            print(f"Ответ от API: статус {response.status_code}")
-            
             if response.status_code != 200:
                 error_text = response.text
-                print(f"Ошибка API: {error_text}")
                 return {
                     'statusCode': 500,
                     'headers': {
                         'Content-Type': 'application/json',
                         'Access-Control-Allow-Origin': '*'
                     },
-                    'body': json.dumps({'error': f'Ошибка API DeepSeek: {response.status_code} - {error_text}'})
+                    'body': json.dumps({'error': f'Ошибка API: {response.status_code}'}, ensure_ascii=False)
                 }
             
             result = response.json()
             translated_text = result['choices'][0]['message']['content']
-            print(f"Перевод выполнен успешно, длина: {len(translated_text)}")
             
             return {
                 'statusCode': 200,
@@ -124,12 +107,11 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }, ensure_ascii=False)
             }
     except Exception as e:
-        print(f"Исключение при переводе: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': f'Ошибка перевода: {str(e)}'})
+            'body': json.dumps({'error': f'Ошибка перевода: {str(e)}'}, ensure_ascii=False)
         }
