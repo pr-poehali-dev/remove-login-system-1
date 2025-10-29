@@ -1,0 +1,32 @@
+{
+  "tests": [
+    {
+      "name": "Тест перевода игрового текста",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "text": "This ancient sword was forged by the legendary blacksmith of Whiterun. Its blade still gleams with power."
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "translatedText": "string",
+        "originalLength": "number",
+        "translatedLength": "number"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Тест с пустым текстом",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "text": ""
+      },
+      "expectedStatus": 400,
+      "expectedBody": {
+        "error": "string"
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
