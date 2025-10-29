@@ -1,6 +1,7 @@
 import json
 import os
 from typing import Dict, Any
+import httpx
 from openai import OpenAI
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -47,7 +48,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Текст не предоставлен'})
         }
     
-    api_key = os.environ.get('OPENAI_API_KEY')
+    api_key = os.environ.get('VSEGPT_API_KEY')
     if not api_key:
         return {
             'statusCode': 500,
@@ -55,10 +56,15 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 'Content-Type': 'application/json',
                 'Access-Control-Allow-Origin': '*'
             },
-            'body': json.dumps({'error': 'API ключ не настроен'})
+            'body': json.dumps({'error': 'API ключ vsegpt.ru не настроен'})
         }
     
-    client = OpenAI(api_key=api_key)
+    http_client = httpx.Client()
+    client = OpenAI(
+        api_key=api_key,
+        http_client=http_client,
+        base_url='https://api.vsegpt.ru/v1'
+    )
     
     system_prompt = """Ты профессиональный переводчик игровых модов для TES Skyrim и The Witcher 3.
 
@@ -74,7 +80,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 Переведи текст с английского на русский."""
 
     response = client.chat.completions.create(
-        model='gpt-4o-mini',
+        model='openai/gpt-4o-mini',
         messages=[
             {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': text_to_translate}
