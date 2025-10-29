@@ -60,13 +60,26 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 Переведи текст с английского на русский."""
 
+    api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+    
+    if not api_key:
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': 'API ключ DeepSeek не настроен. Добавьте DEEPSEEK_API_KEY в секреты.'})
+        }
+    
     try:
         with httpx.Client(timeout=60.0) as client:
+            print(f"Отправляю запрос к DeepSeek API, длина текста: {len(text_to_translate)}")
             response = client.post(
                 'https://api.deepseek.com/chat/completions',
                 headers={
                     'Content-Type': 'application/json',
-                    'Authorization': f'Bearer {os.environ.get("DEEPSEEK_API_KEY", "")}'
+                    'Authorization': f'Bearer {api_key}'
                 },
                 json={
                     'model': 'deepseek-chat',
@@ -79,18 +92,23 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             )
             
+            print(f"Ответ от API: статус {response.status_code}")
+            
             if response.status_code != 200:
+                error_text = response.text
+                print(f"Ошибка API: {error_text}")
                 return {
                     'statusCode': 500,
                     'headers': {
                         'Content-Type': 'application/json',
                         'Access-Control-Allow-Origin': '*'
                     },
-                    'body': json.dumps({'error': f'Ошибка API: {response.status_code}'})
+                    'body': json.dumps({'error': f'Ошибка API DeepSeek: {response.status_code} - {error_text}'})
                 }
             
             result = response.json()
             translated_text = result['choices'][0]['message']['content']
+            print(f"Перевод выполнен успешно, длина: {len(translated_text)}")
             
             return {
                 'statusCode': 200,
@@ -106,6 +124,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }, ensure_ascii=False)
             }
     except Exception as e:
+        print(f"Исключение при переводе: {str(e)}")
         return {
             'statusCode': 500,
             'headers': {
