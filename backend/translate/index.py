@@ -2,7 +2,6 @@ import json
 import os
 from typing import Dict, Any
 import httpx
-from openai import OpenAI
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     '''
@@ -48,24 +47,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             'body': json.dumps({'error': 'Текст не предоставлен'})
         }
     
-    api_key = os.environ.get('VSEGPT_API_KEY')
-    if not api_key:
-        return {
-            'statusCode': 500,
-            'headers': {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*'
-            },
-            'body': json.dumps({'error': 'API ключ vsegpt.ru не настроен'})
-        }
-    
-    http_client = httpx.Client()
-    client = OpenAI(
-        api_key=api_key,
-        http_client=http_client,
-        base_url='https://api.vsegpt.ru/v1'
-    )
-    
     system_prompt = """Ты профессиональный переводчик игровых модов для TES Skyrim и The Witcher 3.
 
 Правила перевода:
@@ -79,28 +60,57 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 Переведи текст с английского на русский."""
 
-    response = client.chat.completions.create(
-        model='openai/gpt-4o-mini',
-        messages=[
-            {'role': 'system', 'content': system_prompt},
-            {'role': 'user', 'content': text_to_translate}
-        ],
-        temperature=0.3,
-        max_tokens=16000
-    )
-    
-    translated_text = response.choices[0].message.content
-    
-    return {
-        'statusCode': 200,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-        },
-        'isBase64Encoded': False,
-        'body': json.dumps({
-            'translatedText': translated_text,
-            'originalLength': len(text_to_translate),
-            'translatedLength': len(translated_text)
-        })
-    }
+    try:
+        with httpx.Client(timeout=60.0) as client:
+            response = client.post(
+                'https://api.deepseek.com/chat/completions',
+                headers={
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {os.environ.get("DEEPSEEK_API_KEY", "")}'
+                },
+                json={
+                    'model': 'deepseek-chat',
+                    'messages': [
+                        {'role': 'system', 'content': system_prompt},
+                        {'role': 'user', 'content': text_to_translate}
+                    ],
+                    'temperature': 0.3,
+                    'max_tokens': 8000
+                }
+            )
+            
+            if response.status_code != 200:
+                return {
+                    'statusCode': 500,
+                    'headers': {
+                        'Content-Type': 'application/json',
+                        'Access-Control-Allow-Origin': '*'
+                    },
+                    'body': json.dumps({'error': f'Ошибка API: {response.status_code}'})
+                }
+            
+            result = response.json()
+            translated_text = result['choices'][0]['message']['content']
+            
+            return {
+                'statusCode': 200,
+                'headers': {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*'
+                },
+                'isBase64Encoded': False,
+                'body': json.dumps({
+                    'translatedText': translated_text,
+                    'originalLength': len(text_to_translate),
+                    'translatedLength': len(translated_text)
+                }, ensure_ascii=False)
+            }
+    except Exception as e:
+        return {
+            'statusCode': 500,
+            'headers': {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': json.dumps({'error': f'Ошибка перевода: {str(e)}'})
+        }
